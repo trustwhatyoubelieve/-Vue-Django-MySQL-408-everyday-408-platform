@@ -1,0 +1,13 @@
+# 1. 忽略 Python 虚拟环境
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# 2. 忽略前端 Vue 的依赖包和本地打包产物
+frontend/node_modules/
+frontend/dist/
+
+# 3. 忽略 IDE 产生的本地配置文件
+.vscode/
+.idea/

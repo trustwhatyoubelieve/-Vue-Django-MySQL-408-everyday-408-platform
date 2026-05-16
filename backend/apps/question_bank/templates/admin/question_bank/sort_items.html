@@ -1,0 +1,297 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    body { background: #f6f8fa; }
+    .sort-container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 13px; color: #586069; }
+    .breadcrumb a { color: #0366d6; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb-sep { color: #d1d5da; }
+    .sort-header { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 20px 24px; margin-bottom: 20px; }
+    .sort-header h1 { margin: 0 0 4px 0; font-size: 20px; font-weight: 600; color: #24292e; }
+    .sort-header .subtitle { margin: 0; font-size: 13px; color: #586069; }
+    .sort-list-wrapper { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; overflow: hidden; }
+    .sort-list { list-style: none; margin: 0; padding: 0; }
+    .sort-item { display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid #eaecef; cursor: grab; user-select: none; transition: background-color 0.15s; background: #fff; }
+    .sort-item:last-child { border-bottom: none; }
+    .sort-item:hover { background-color: #f6f8fa; }
+    .sort-item.dragging { opacity: 0.4; background-color: #e6fffa; }
+    .drag-handle { display: flex; flex-direction: column; gap: 3px; margin-right: 16px; cursor: grab; color: #d1d5da; padding: 4px; width: 22px; }
+    .drag-handle:hover { color: #586069; }
+    .drag-handle span { display: block; width: 18px; height: 2px; background: currentColor; border-radius: 1px; }
+    .item-order { min-width: 36px; height: 28px; line-height: 28px; text-align: center; background: #f3f4f6; border-radius: 14px; font-size: 12px; font-weight: 600; color: #6b7280; margin-right: 16px; }
+    .item-content { flex: 1; min-width: 0; }
+    .item-name { font-size: 14px; font-weight: 500; color: #24292e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-meta { font-size: 12px; color: #586069; margin-top: 2px; }
+    .item-meta code { font-family: monospace; background: #f3f4f6; padding: 1px 5px; border-radius: 3px; color: #e91e63; font-size: 11px; }
+    .empty-state { padding: 60px 20px; text-align: center; color: #586069; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+    .empty-state p { margin: 0; font-size: 14px; }
+    .sort-footer { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 16px 24px; margin-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .sort-footer .hint { font-size: 13px; color: #586069; flex: 1; }
+    .sort-footer .actions { display: flex; gap: 10px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-decoration: none; border: 1px solid transparent; }
+    .btn-primary { background: #2ea44f; color: #fff; border-color: #2ea44f; }
+    .btn-primary:hover { background: #2c974b; }
+    .btn-primary:disabled { background: #94d3a2; cursor: not-allowed; }
+    .btn-secondary { background: #fff; color: #24292e; border-color: #d1d5da; }
+    .btn-secondary:hover { background: #f3f4f6; border-color: #c0c4cc; }
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; z-index: 10000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .toast.success { background: #2ea44f; color: #fff; }
+    .toast.error { background: #cb2431; color: #fff; }
+</style>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="sort-container">
+    {# 面包屑导航 #}
+    <div class="breadcrumb">
+        <a href="{% url 'admin:index' %}">首页</a>
+        <span class="breadcrumb-sep">/</span>
+        <a href="{{ changelist_url }}">{{ opts.app_config.verbose_name }}</a>
+        {% if grandparent_url %}<span class="breadcrumb-sep">/</span><a href="{{ grandparent_url }}">{{ grandparent_name }}</a>{% endif %}
+        {% if parent_url %}<span class="breadcrumb-sep">/</span><a href="{{ parent_url }}">{{ parent_name }}</a>{% endif %}
+        <span class="breadcrumb-sep">/</span><span>拖动排序</span>
+    </div>
+
+    {# 页面标题 #}
+    <div class="sort-header">
+        <div>
+            <h1>{{ title }}</h1>
+            <div class="subtitle">拖动列表项可改变顺序，拖动完成后点击"保存排序"按钮</div>
+        </div>
+        <div>
+            <span id="item-count" style="font-size:13px;color:#586069;"></span>
+        </div>
+    </div>
+
+    {# 拖动列表 #}
+    <div class="sort-list-wrapper">
+        <ul class="sort-list" id="sort-list">
+        </ul>
+    </div>
+
+    {# 底部操作栏 #}
+    <div class="sort-footer">
+        <div class="hint">提示：拖动项到目标位置后，点击「保存排序」按钮保存更改。</div>
+        <div class="actions">
+            <a href="{{ changelist_url }}" class="btn btn-secondary">← 返回列表</a>
+            <button id="btn-save" class="btn btn-primary" disabled>保存排序</button>
+        </div>
+    </div>
+
+    {# CSRF Token 隐藏字段 #}
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+</div>
+
+{# Toast 提示 #}
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+    'use strict';
+
+    var sortList = document.getElementById('sort-list');
+    var btnSave = document.getElementById('btn-save');
+    var itemCount = document.getElementById('item-count');
+    var toast = document.getElementById('toast');
+
+    // 直接使用模板传入的 URL
+    var DATA_URL = '{{ data_url|safe }}';
+    var SAVE_URL = '{{ save_url|safe }}';
+    var SORT_TYPE = '{{ sort_type|safe }}';
+
+    var originalOrder = [];
+    var sortableInstance = null;
+
+    function showToast(message, type) {
+        toast.textContent = message;
+        toast.className = 'toast ' + (type || 'success');
+        toast.style.display = 'block';
+        setTimeout(function() { toast.style.display = 'none'; }, 3000);
+    }
+
+    function updateOrderNumbers() {
+        var items = sortList.querySelectorAll('.sort-item');
+        items.forEach(function(item, idx) {
+            var numEl = item.querySelector('.item-order');
+            if (numEl) numEl.textContent = idx + 1;
+        });
+        itemCount.textContent = '共 ' + items.length + ' 项';
+    }
+
+    function checkChanged() {
+        var items = sortList.querySelectorAll('.sort-item');
+        var ids = [];
+        items.forEach(function(item) { ids.push(parseInt(item.dataset.id, 10)); });
+        var changed = (ids.length !== originalOrder.length);
+        if (!changed) {
+            for (var i = 0; i < ids.length; i++) {
+                if (ids[i] !== originalOrder[i]) { changed = true; break; }
+            }
+        }
+        btnSave.disabled = !changed;
+    }
+
+    function renderItem(item, index) {
+        var li = document.createElement('li');
+        li.className = 'sort-item';
+        li.dataset.id = item.id;
+
+        var handle = document.createElement('div');
+        handle.className = 'drag-handle';
+        handle.innerHTML = '<span></span><span></span><span></span>';
+
+        var orderNum = document.createElement('div');
+        orderNum.className = 'item-order';
+        orderNum.textContent = index + 1;
+
+        var content = document.createElement('div');
+        content.className = 'item-content';
+
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'item-name';
+        nameDiv.textContent = item.name;
+        content.appendChild(nameDiv);
+
+        if (item.business_id) {
+            var meta = document.createElement('div');
+            meta.className = 'item-meta';
+            meta.innerHTML = '业务编号：<code>' + item.business_id + '</code>';
+            content.appendChild(meta);
+        } else if (item.order_no !== undefined && item.order_no !== null) {
+            var meta = document.createElement('div');
+            meta.className = 'item-meta';
+            meta.textContent = '顺序号：' + item.order_no;
+            content.appendChild(meta);
+        }
+
+        li.appendChild(handle);
+        li.appendChild(orderNum);
+        li.appendChild(content);
+        return li;
+    }
+
+    function loadData() {
+        console.log('[Sort] Loading from:', DATA_URL);
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', DATA_URL, true);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onload = function() {
+            console.log('[Sort] Response status:', xhr.status);
+            console.log('[Sort] Response:', xhr.responseText.substring(0, 500));
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    console.log('[Sort] Parsed response:', resp);
+                    if (resp.code === 0) {
+                        var items = resp.data.items || resp.data.chapters || resp.data.subchapters || resp.data.questions || [];
+                        console.log('[Sort] Items:', items);
+                        sortList.innerHTML = '';
+                        items.forEach(function(item) {
+                            sortList.appendChild(renderItem(item, sortList.children.length));
+                        });
+                        originalOrder = items.map(function(item) { return item.id; });
+                        updateOrderNumbers();
+                        initSortable();
+                    } else {
+                        sortList.innerHTML = '<li class="empty-state"><div class="icon">!</div><p>错误：' + (resp.message || '未知错误') + '</p></li>';
+                    }
+                } catch (e) {
+                    console.error('[Sort] Parse error:', e);
+                    sortList.innerHTML = '<li class="empty-state"><div class="icon">!</div><p>数据解析错误: ' + e.message + '</p></li>';
+                }
+            } else {
+                sortList.innerHTML = '<li class="empty-state"><div class="icon">!</div><p>加载数据失败 (HTTP ' + xhr.status + ')</p></li>';
+            }
+        };
+        xhr.onerror = function() {
+            console.error('[Sort] Network error');
+            sortList.innerHTML = '<li class="empty-state"><div class="icon">!</div><p>网络请求失败</p></li>';
+        };
+        xhr.send();
+    }
+
+    function initSortable() {
+        if (sortableInstance) sortableInstance.destroy();
+        sortableInstance = new Sortable(sortList, {
+            animation: 200,
+            handle: '.drag-handle',
+            ghostClass: 'dragging',
+            onEnd: function() {
+                updateOrderNumbers();
+                checkChanged();
+            }
+        });
+    }
+
+    btnSave.addEventListener('click', function() {
+        console.log('[Sort] Save clicked');
+        console.log('[Sort] Save URL:', SAVE_URL);
+        var items = sortList.querySelectorAll('.sort-item');
+        var orderedIds = [];
+        items.forEach(function(item) { orderedIds.push(parseInt(item.dataset.id, 10)); });
+        console.log('[Sort] Ordered IDs:', orderedIds);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', SAVE_URL, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
+        xhr.onload = function() {
+            console.log('[Sort] Save response status:', xhr.status);
+            console.log('[Sort] Save response:', xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (resp.code === 0) {
+                        showToast(resp.message || '排序保存成功', 'success');
+                        originalOrder = orderedIds.slice();
+                        btnSave.disabled = true;
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        showToast(resp.message || '保存失败', 'error');
+                    }
+                } catch (e) {
+                    console.error('[Sort] Save parse error:', e);
+                    showToast('保存失败', 'error');
+                }
+            } else {
+                var errMsg = '请求失败: ' + xhr.status;
+                try {
+                    var errResp = JSON.parse(xhr.responseText);
+                    if (errResp.message) errMsg += ' - ' + errResp.message;
+                } catch(e) {}
+                console.error('[Sort] Save error:', errMsg, xhr.responseText);
+                showToast(errMsg, 'error');
+            }
+        };
+        xhr.onerror = function() {
+            console.error('[Sort] Save network error');
+            showToast('网络请求失败', 'error');
+        };
+        xhr.send(JSON.stringify({ordered_ids: orderedIds}));
+    });
+
+    function getCSRFToken() {
+        // 优先从页面上的隐藏 input 读取（由模板 render）
+        var input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (input && input.value) {
+            return input.value;
+        }
+        // 备选：从 cookie 读取
+        var match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
+    }
+
+    document.addEventListener('DOMContentLoaded', loadData);
+})();
+</script>
+{% endblock %}
