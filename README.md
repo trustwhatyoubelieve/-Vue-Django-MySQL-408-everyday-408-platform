@@ -61,6 +61,20 @@
 │
 └── README.md                          # 项目说明
 ```
+效果图展示
+<img width="1680" height="838" alt="image" src="https://github.com/user-attachments/assets/a3cd2c9c-788d-49b4-91ca-3e8801a53860" />
+主界面
+<img width="1793" height="900" alt="image" src="https://github.com/user-attachments/assets/495e0f7f-4d15-470d-b33c-d16493005fe0" />
+题库浏览
+<img width="1622" height="902" alt="image" src="https://github.com/user-attachments/assets/6dd2e5e3-c258-4ae5-9b52-20e6b7efd0c5" />
+刷题界面
+<img width="1563" height="913" alt="image" src="https://github.com/user-attachments/assets/89cb7888-2b41-48cf-af4c-52916c9c2411" />
+学习中心
+<img width="1556" height="922" alt="image" src="https://github.com/user-attachments/assets/14411c98-92d5-459e-ba72-c660a72f59f1" />
+错题本
+<img width="1568" height="787" alt="image" src="https://github.com/user-attachments/assets/f83dc0ca-473e-43b9-acbd-2dbbd9331173" />
+推荐界面
+
 
 ## 后端启动步骤
 
